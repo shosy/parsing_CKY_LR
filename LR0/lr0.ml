@@ -39,12 +39,15 @@ let rec print_state state =
     print_string nt;
     print_string " -> ";
     let rec print_vars_pos n vars =
-      (if n = 0 then 
-        (print_string "."; if vars <> [] then print_string " "));
+      if n = 0 then
+        (print_string ".";
+         if vars <> [] then print_string " ");
       match vars with
-          [] -> ()
-        | [var] -> print_var var
-        | var::rest -> print_var var; print_string " "; print_vars_pos (n-1) rest
+        [] -> ()
+      | var::rest -> 
+          print_var var;
+          if n > 0 || rest <> [] then print_string " ";
+          print_vars_pos (n-1) rest
     in
     print_vars_pos pos vars
   in
