@@ -1,3 +1,4 @@
+(** syntax **)
 (* grammar *)
 type t = string  (* terminal *)
 type nt = string  (* non-terminal *)
@@ -5,13 +6,14 @@ type var = T of t | NT of nt  (* variable *)
 type rule = nt * var list  (* non-terminal -> variables *)
 type grammar = rule list * nt  (* rules and initial non-terminal *)
 
-(* parse tree *)
-type ptree = PTt of t | PTnt of nt * ptree list
-
+(* LR(0)オートマトン *)
 type pos = int  (* 規則の何文字目を読んでいるか *)
-type state = (rule * pos) list  (* LRオートマトンの状態 *)
+type state = (rule * pos) list  (* LR(0)オートマトンの状態 *)
 
 type action = Shift of state | Reduce of rule | Accept
+
+(* parse tree *)
+type ptree = PTt of t | PTnt of nt * ptree list
 
 
 let prime = "'"
@@ -75,8 +77,8 @@ let print_ptree ptree =
   print_ptree_sub 0 ptree
 
 
-(**  **)
-(* 文法規則allrulesのもとで、stateのクロージャを計算 *)
+(** LR(0)法 **)
+(* stateのクロージャ *)
 let closure state allrules = 
   let epsilon_transition (rule,pos) =
     let (nt,vars) = rule in
@@ -119,7 +121,8 @@ let reduces state =
   in
   List.map fst state'
 
-(*  *)
+(* 状態stateと読んでいるトークンtokenから、次の行動を計算 *)
+(* TODO: 今回は逐一計算しているが、効率化のために事前にすべて計算してテーブルを用意すべき *)
 let lookup_LR0tbl_t state token allrules =
   let next_state = goto state (T(token)) allrules in
   let reducible_rules = reduces state in
@@ -134,13 +137,13 @@ let lookup_LR0tbl_t state token allrules =
     else
       failwith "shift/reduce conflict"
 
-(*  *)
+(* 状態stateと非終端記号ntから、次に遷移する状態を計算 *)
 let lookup_LR0tbl_nt state nt allrules =
   let next_state = goto state (NT(nt)) allrules in
   if next_state = [] then failwith "no action"
   else next_state
 
-(** LR(0)の本体 **)
+(* LR(0)ルーチン *)
 let rec lr state_stack ptree_stack tokens allrules =
   let curr_state = List.hd state_stack in
   print_string "state:\t"; print_state curr_state; print_newline ();
@@ -170,7 +173,7 @@ let rec lr state_stack ptree_stack tokens allrules =
         next_state :: state_stack' in
       let next_ptree_stack = 
         let (ptrees, ptree_stack') = pop ptree_stack n in
-        (* 本当はptreesの根とvarsが同じか見たほうが良い *)
+        (* ptreesの根とvarsが同じか確認したほうが良いかも *)
         PTnt(nt, ptrees) :: ptree_stack' in
       lr next_state_stack next_ptree_stack tokens allrules
   | Accept -> 
@@ -179,8 +182,6 @@ let rec lr state_stack ptree_stack tokens allrules =
         [ptree] -> ptree
       | _ -> failwith "not only one parse tree"
 
-
-(** initialization function **)
 (* もとのinitial non-terminalを S としたとき、
    規則 S' -> S$ を加え、
    initial non-terminalを S' にする *)
@@ -193,8 +194,7 @@ let initialize_grammar grammar =
 (* tokensの末尾に$を付ける *)
 let initialize_tokens tokens = tokens @ [eof]
 
-
-(** main **)
+(* main *)
 let parse grammar tokens = 
   let grammar = initialize_grammar grammar in
   let tokens = initialize_tokens tokens in
